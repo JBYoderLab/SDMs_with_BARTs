@@ -154,6 +154,8 @@ PA <- rbind(data.frame(lon=jtOcc$lon, lat=jtOcc$lat, JT=1, pres_envs),
 glimpse(PA) # should be ~twice the size of the presence data set
 
 # You may want to write out this data frame for later /read back in 
+if(!dir.exists("output")) dir.create("output")
+
 write.table(PA, "output/JT_presence-pseudoabsence-envs.txt", sep=",", col.names=TRUE, row.names=FALSE, quote=FALSE)
 PA <- read.csv("output/JT_presence-pseudoabsence-envs.txt")
 glimpse(PA)
