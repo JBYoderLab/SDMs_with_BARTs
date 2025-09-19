@@ -188,9 +188,11 @@ dev.off()
 # don't quite work with SpatRaster objects, the data format used in terra
 
 # Make a NaN vector with a value for every cell in a layer of BClim
-pred_bart <- predict(jtBARTtop, stack(BClim), splitby=20)
+pred_bart <- predict(jtBARTtop, stack(BClim), splitby=20, quantiles=c(0.025,0.975))
+pred_bart # note that we have three layers in this 
+# These are the mean and specified quantiles, the upper and lower bounds of the 95% posterior density
 
-# save (and reload, if later)
+# Save (and reload, if later)
 writeRaster(pred_bart, "output/jtBARTtop_SDM_pred.tiff", overwrite=TRUE) 
 pred_bart <- rast("output/jtBARTtop_SDM_pred.tiff")
 
@@ -207,7 +209,8 @@ jt_range <- read.csv("data/JT_obs.txt", sep="\t") %>% # original presence record
 pred_bart.masked <- mask(pred_bart, jt_range)
 
 # reformat as a dataframe, for figure generation
-jtBARTtop.df <- cbind(crds(pred_bart.masked), as.data.frame(pred_bart.masked)) %>% rename(prJT = jtBARTtop_SDM_pred, lon=x, lat=y)
+jtBARTtop.df <- cbind(crds(pred_bart.masked), as.data.frame(pred_bart.masked)) %>% 
+  rename(prJT = jtBARTtop_SDM_pred_1, lo95=jtBARTtop_SDM_pred_2, up95=jtBARTtop_SDM_pred_3, lon=x, lat=y)
 glimpse(jtBARTtop.df)
 
 #-------------------------------------------------------------------------
@@ -232,6 +235,7 @@ coast <- ne_coastline(scale=10, returnclass="sf")
 }
 dev.off()
 
+# illustrate the mean predictions with original data overlaid
 {png("topics/03_BART_SDMs/jtBARTtop_predicted_data.png", width=750, height=750)
   
 ggplot() + 
@@ -251,6 +255,23 @@ ggplot() +
 }
 dev.off()
 
+# illustrate the width of the 95% posterior density interval
+{png("topics/03_BART_SDMs/jtBARTtop_predicted_95pctWidth.png", width=750, height=750)
+  
+  ggplot() + 
+    geom_sf(data=coast, color="slategray2", linewidth=3) + 
+    geom_sf(data=states, fill="cornsilk2", color="antiquewhite4") + 
+    geom_tile(data=jtBARTtop.df, aes(x=lon, y=lat, fill=up95-lo95)) +
+    geom_sf(data=states, fill=NA, color="antiquewhite4") + 
+    
+    scale_fill_gradient(low="#feedde", high="#a63603", name="Confidence interval width") +
+    
+    coord_sf(xlim = c(-119.5, -112), ylim = c(33, 38.5), expand = FALSE) + 
+    theme_bw(base_size=18) + 
+    theme(axis.title=element_blank(), panel.background=element_rect(fill="slategray3"), panel.grid.major=element_blank(), legend.position="top", legend.direction="horizontal", legend.key.width=unit(50, "points"))
+  
+}
+dev.off()
 
 
 #-------------------------------------------------------------------------
