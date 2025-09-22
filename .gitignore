@@ -1,5 +1,6 @@
 # Project files
 output/
+data/climate/
 SDMs_BARTs_notes.text
 topics/*/*.png
 

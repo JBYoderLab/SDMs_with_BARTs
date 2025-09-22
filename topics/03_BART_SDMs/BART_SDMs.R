@@ -1,5 +1,5 @@
 # Species distribution modeling with BARTs in R
-# Jeremy B. Yoder, 16 Sept 2025
+# Jeremy B. Yoder, 22 Sept 2025
 
 # Clears the environment and load key packages
 rm(list=ls())
@@ -277,11 +277,40 @@ dev.off()
 #-------------------------------------------------------------------------
 # Compare the BRT and BART results
 
+# reload the BRT model
+library("gbm")
+
 # reload the BRT predictions
 jtBRT.pred <- rast("output/jt_BRT_SDM_pred.tiff")
 
 BRT.pred.masked <- mask(jtBRT.pred, jt_range) # mask to the range polygon
 
+# compare classification accuracy for BART and BRT
+predictedBART <- terra::extract(pred_bart, PA[,c("lon", "lat")])[,2]
+predictedBRT <- terra::extract(jtBRT.pred, PA[,c("lon", "lat")])[,2]
+
+# calculate AUC (higher is better)
+auc(PA$JT, predictedBART)
+auc(PA$JT, predictedBRT)
+
+# determine a classification cutoff for the BRT
+predBRT <- prediction(predictedBRT, PA$JT)
+tssBRT <- performance(predBRT, "sens", "spec")
+tss.list <- (tssBRT@x.values[[1]] + tssBRT@y.values[[1]] - 1)
+tss.df <- data.frame(alpha = tssBRT@alpha.values[[1]], tss = tss.list)
+threshBRT <- min(tss.df$alpha[which(tss.df$tss == max(tss.df$tss))])
+
+# get cutoff for the BART
+summary(jtBARTtop)
+threshBART <- 0.56
+
+# Confusion matrix for BRT: 0,1 is observed; FALSE,TRUE is model-predicted
+table(PA$JT, predictedBRT>threshBRT) 
+
+# Confusion matrix for BART: 0,1 is observed; FALSE,TRUE is model-predicted
+table(PA$JT, predictedBART>threshBART) 
+
+# illustrate differences
 BARTvBRT <- pred_bart.masked - BRT.pred.masked # difference in Pr(present)
 
 BARTvBRT.df <- cbind(crds(BARTvBRT), as.data.frame(BARTvBRT)) %>% rename(prDiff = jtBARTtop_SDM_pred, lon = x, lat = y)

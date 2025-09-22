@@ -53,7 +53,7 @@ dev.off()
 MojExt <- c(-119.5, -112, 33, 38.5) # Extent of the Mojave desert
 
 # climate (Bioclim, previously downloaded at max res)
-BClim <- crop(worldclim_tile("bio", -120, 33, path="../data/Yucca/"), MojExt)
+BClim <- crop(worldclim_tile("bio", -120, 33, path="data"), MojExt)
 
 plot(BClim[[1]]) # one layer from the SpatRaster stack
 
@@ -63,7 +63,7 @@ plot(BClim[[1]]) # one layer from the SpatRaster stack
 
 names(BClim) <- c("AMT", "MTWaQ", "MTCQ", "AP", "PWeM", "PDM", "PS", "PWeQ", "PDQ", "PWaQ", "PCQ", "MDR", "ITH", "TS", "MTWaM", "MTCM", "TAR", "MTWeQ", "MTDQ")
 
-plot(BClim[["AMT"]]) # Aannual mean temperature
+plot(BClim[["AMT"]]) # Annual mean temperature
 plot(BClim[["AP"]]) # Annual precipitation
 
 # As a reminder, the bioclim variables are averages calculated from 1970-2000;
