@@ -1,5 +1,5 @@
 # Species distribution modeling with BARTs in R
-# Jeremy B. Yoder, 22 Sept 2025
+# Jeremy B. Yoder, 23 Sept 2025
 
 # Clears the environment and load key packages
 rm(list=ls())
@@ -184,10 +184,10 @@ dev.off()
 #-------------------------------------------------------------------------
 # And, now, predict to the full range of the Mojave 
 
-# Unfortunately this will take some extra work, because BART model objects 
-# don't quite work with SpatRaster objects, the data format used in terra
-
-# Make a NaN vector with a value for every cell in a layer of BClim
+# Because the current version of embarcadero's prediction function isn't adapted
+# to terra's SpatRaster data format, we'll have to wrap the BClim object in a call
+# to the old stack() function from the raster package, to convert BClim to a 
+# format the predict() function can use.
 pred_bart <- predict(jtBARTtop, stack(BClim), splitby=20, quantiles=c(0.025,0.975))
 pred_bart # note that we have three layers in this 
 # These are the mean and specified quantiles, the upper and lower bounds of the 95% posterior density
@@ -302,7 +302,7 @@ threshBRT <- min(tss.df$alpha[which(tss.df$tss == max(tss.df$tss))])
 
 # get cutoff for the BART
 summary(jtBARTtop)
-threshBART <- 0.56
+threshBART <- 0.52
 
 # Confusion matrix for BRT: 0,1 is observed; FALSE,TRUE is model-predicted
 table(PA$JT, predictedBRT>threshBRT) 
@@ -311,9 +311,9 @@ table(PA$JT, predictedBRT>threshBRT)
 table(PA$JT, predictedBART>threshBART) 
 
 # illustrate differences
-BARTvBRT <- pred_bart.masked - BRT.pred.masked # difference in Pr(present)
+BARTvBRT <- pred_bart.masked[[1]] - BRT.pred.masked # difference in Pr(present)
 
-BARTvBRT.df <- cbind(crds(BARTvBRT), as.data.frame(BARTvBRT)) %>% rename(prDiff = jtBARTtop_SDM_pred, lon = x, lat = y)
+BARTvBRT.df <- cbind(crds(BARTvBRT), as.data.frame(BARTvBRT)) %>% rename(prDiff = jtBARTtop_SDM_pred_1, lon = x, lat = y)
 glimpse(BARTvBRT.df)
 
 
