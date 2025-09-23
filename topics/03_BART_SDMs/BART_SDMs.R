@@ -124,7 +124,7 @@ write_rds(jtVarimp, file="output/models/jt_varimp.rds") # save the work
 jtVarimp <- read_rds(file="output/models/jt_varimp.rds") # read it back in
 
 # Write out the varimp diagnostic plot
-{png(file="topics/03_BART_SDMs/jt_varimp_plot.png", width=750, height=500)
+{png(file="topics/03_BART_SDMs/jt_varimp_plot.png", width=600, height=500)
   
   jtVarimp + 
     theme_bw(base_size=18) +

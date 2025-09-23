@@ -9,7 +9,7 @@ rm(list=ls())
 
 library("tidyverse") 
 library("sf")
-# library("terra")
+library("terra")
 library("raster")
 
 library("rnaturalearth")
@@ -123,9 +123,31 @@ glimpse(PA) # should now have a new numeric-value column
 # are much denser in Nevada --- we can treat state as an RI predictor to
 # account for this.
 
-# We can simply add the RI predictor into a model with predictors found by
-# previous predictor selection ...
-topX <- c("PS", "PDQ", "PWaQ", "MTCM", "PDM", "MTWeQ", "TS")
+# First, we'll perform predictor selection again, with the RI effect included
+xnames <- colnames(PA)[5:23]
+
+jtRIVarimp <- varimp.diag(y.data=as.numeric(PA[,"JT"]), x.data=PA[,xnames], ri.data=PA[,"State"])
+
+jtRIVarimp$data <- jtRIVarimp$data %>% mutate(trees = factor(trees, c(10,20,50,100,150,200)))
+
+jtRIVarimp$labels$group <- "Trees"
+jtRIVarimp$labels$colour <- "Trees"
+
+write_rds(jtRIVarimp, file="output/models/jt_RIvarimp.rds") # save the work
+jtRIVarimp <- read_rds(file="output/models/jt_RIvarimp.rds") # read it back in
+
+# Write out the varimp diagnostic plot
+{png(file="topics/05_RI_BART/jt_RIvarimp_plot.png", width=600, height=500)
+  
+  jtRIVarimp + 
+    theme_bw(base_size=18) +
+    theme(legend.position="inside", legend.position.inside=c(0.8, 0.7), axis.text.x=element_text(angle=90))  # okay nice
+  
+}
+dev.off()
+
+# We can then identify the top non-RI predictors as we did before ...
+topX <- c("PDQ", "MTCM", "PS", "PDM", "PWaQ", "TAR", "TS", "MDR")
 
 # Then fit the model, specifying State as an RI predictor ("group.by")
 jtRIBART <- rbart_vi(as.formula(paste(paste('JT', paste(topX, collapse=' + '), sep = ' ~ '), 'State', sep=' - ')), data = PA, group.by = PA[,'State'], n.chains = 1, k = 2, power = 2, base = 0.95, keepTrees = TRUE)
@@ -144,12 +166,12 @@ dev.off()
 
 # We can inspect the estimated RI effect to see whether it makes sense to include:
 
-{png("topics/05_RI_BART/BART_RI_estimates.png", width=500, height=350)
+{png("topics/05_RI_BART/BART_RI_estimates.png", width=400, height=350)
 
 plot.ri(jtRIBART, temporal=FALSE) + 
   scale_x_discrete(labels=c("Arizona", "California", "Nevada", "Utah")) + # relabel numeric coding
   labs(title="Random intercept effects of state", x="RI term") + 
-  theme_bw(base_size=18)
+  theme_bw(base_size=14)
 
 }
 dev.off()
@@ -180,7 +202,7 @@ jt_range <- read.csv("data/JT_obs.txt", sep="\t") %>% # original presence record
 pred_RI.masked <- mask(pred_RI, jt_range)
 
 # reformat as a dataframe, for figure generation
-jtRIBART.df <- cbind(crds(pred_RI.masked), as.data.frame(pred_rast.masked)) %>% rename(prJT = jtRIBART_SDM_pred, lon=x, lat=y)
+jtRIBART.df <- cbind(crds(pred_RI.masked), as.data.frame(pred_RI.masked)) %>% rename(prJT = jtRIBART_SDM_pred, lon=x, lat=y)
 glimpse(jtRIBART.df)
 
 #-------------------------------------------------------------------------
@@ -214,9 +236,10 @@ pred_basic <- rast("output/jtBARTtop_SDM_pred.tiff")
 
 # Calculate the difference in Pr(Present)
 # between the RI model and the previous non-RI model
-RIvBART <- pred_RI - pred_basic 
+RIvBART <- pred_RI - pred_basic[[1]] 
+RIvBART.masked <- mask(RIvBART, jt_range)
 
-RIvBART.df <- cbind(crds(RIvBART), as.data.frame(RIvBART)) %>% rename(prDiff = jtRIBART_SDM_pred, lon = x, lat = y)
+RIvBART.df <- cbind(crds(RIvBART.masked), as.data.frame(RIvBART.masked)) %>% rename(prDiff = jtRIBART_SDM_pred, lon = x, lat = y)
 glimpse(RIvBART.df)
 
 {png("topics/05_RI_BART/jtRIBART_vs_BART.png", width=750, height=750)
