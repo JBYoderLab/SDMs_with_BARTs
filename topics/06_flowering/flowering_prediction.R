@@ -1,10 +1,19 @@
 # Using BARTs to model Joshua tree mast-flowering
-# Jeremy B. Yoder, 20 Apr 2024
+# Jeremy B. Yoder, 24 Sept 2025
 
 rm(list=ls())  # Clears the environment and load key packages
 
 # This script assumes your working directory is the project directory; you may want to change this
 # setwd("~/Documents/Active_projects/BART_workshop")
+
+# This is a simplified version of analysis now presented as
+#
+# Yoder JB, AK Andrade, LA DeFalco, TC Esque, CJ Carlson, DF Shryock, R Yeager, 
+# and CI Smith. 2024. Reconstructing 120 years of climate change impacts on 
+# Joshua tree flowering. Ecology Letters, 27, e14478. doi.org/10.1111/ele.14478
+# 
+# For more detail, consult the paper and its supporting data and code on Dryad at
+# doi.org/10.5061/dryad.9kd51c5rr
 
 library("tidyverse") 
 library("sf")
@@ -52,7 +61,7 @@ jotr.varimp$labels$colour <- "Trees"
 label_parse <- function(breaks){ parse(text=breaks) } # need this, for reasons
 
 # the varim.diag() plot
-{png(file="topics/05_flowering_prediction/varimp_Jotr_flowering.png", width=750, height=500)
+{png(file="topics/06_flowering/varimp_Jotr_flowering.png", width=750, height=500)
 
 jotr.varimp + scale_x_discrete(label=label_parse) + theme_bw(base_size=18) + theme(legend.position="inside", legend.position.inside=c(0.8, 0.7), axis.text=element_text(size=13), axis.text.x=element_text(size=13, angle=75, hjust=1), legend.text=element_text(size=12), legend.title=element_text(size=13))  # okay nice
 
@@ -87,7 +96,7 @@ jotr.RImod <- rbart_vi(
 
 summary(jotr.RImod)
 
-{png("topics/05_flowering_prediction/Jotr_flower_RImod_RI_est.png", width=750, height=500)
+{png("topics/06_flowering/Jotr_flower_RImod_RI_est.png", width=750, height=500)
 plot.ri(jotr.RImod, temporal=TRUE) + labs(title="Estimated random intercept effects of observation year", x="Observation year") + theme_bw(base_size=18) + theme(axis.text.x=element_text(angle=0, size=16))
 
 }
@@ -107,7 +116,7 @@ p <- read_rds("output/models/bart.model.Jotr.partials.rds")
 partvals <- data.frame(predictor=rep(jotr.preds, each=nrow(p[[1]]$data)), do.call("rbind", lapply(p, function(x) x$data))) %>% mutate(predictor=factor(predictor, jotr.preds))
 
 
-{png("topics/05_flowering_prediction/Jotr_flowering_partials.png", width=750, height=1000)
+{png("topics/06_flowering/Jotr_flowering_partials.png", width=750, height=1000)
 
 ggplot(partvals) + geom_ribbon(aes(x=x, ymin=q05, ymax=q95), fill="#41b6c4") + geom_line(aes(x=x, y=med), color="white") + facet_wrap("predictor", nrow=3, scale="free") + labs(y="Marginal Pr(Flowers)") + theme_bw(base_size=24) + theme(axis.title.x=element_blank(), panel.spacing=unit(0.2,"in"))
 
@@ -125,7 +134,7 @@ spart.df <- cbind(coordinates(spYr), as.data.frame(spYr)) %>% filter(!is.na(pptY
 
 levels(spart.df$predictor) <- c("Delta[Y1-2]*PPT", "Delta[Y0-1]*PPT", "Max*VPD[Y0]", "Delta[Y0-1]*Min*VPD", "Min*Temp[Y0]", "Delta[Y0-1]*Max*Temp", "PPT[Y0]", "PPT[Y1]", "Min*VPD[Y0]", "Delta[Y0-1]*Max*VPD", "Max*Temp[Y0]", "PPT[Y2]", "Delta[Y0-1]*Min*Temp")
 
-{png(paste("topics/05_flowering_prediction/Jotr_flower_spartials_", yr, ".png", sep=""), width=750, height=1000)
+{png(paste("topics/06_flowering/Jotr_flower_spartials_", yr, ".png", sep=""), width=750, height=1000)
 
 ggplot() + 
 	geom_tile(data=spart.df, aes(x=lon, y=lat, fill=prFL)) + 
@@ -150,12 +159,12 @@ preds <- brick(paste("data/JT_PRISM_predictors/PRISM_derived_predictors_", yr, "
 # prediction with the RI predictor (year) removed
 pred.yr <- predict(jotr.mod, preds[[jotr.preds]], splitby=20)
 
-writeRaster(pred.yr, paste("topics/05_flowering_prediction/BART_predicted_flowering_",yr,".bil", sep=""), overwrite=TRUE)
+writeRaster(pred.yr, paste("topics/06_flowering/BART_predicted_flowering_",yr,".bil", sep=""), overwrite=TRUE)
 
 pred.df <- cbind(coordinates(pred.yr), as.data.frame(pred.yr)) %>% rename(prFL = layer, lon = x, lat = y)
 glimpse(pred.df)
 
-{png(paste("topics/05_flowering_prediction/Jotr_predicted_flowering_", yr, ".png", sep=""), width=1000, height=1000)
+{png(paste("topics/06_flowering/Jotr_predicted_flowering_", yr, ".png", sep=""), width=1000, height=1000)
 
 ggplot() + 
   geom_tile(data=pred.df, aes(x=lon, y=lat, fill=prFL)) +
