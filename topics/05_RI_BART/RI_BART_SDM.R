@@ -1,5 +1,5 @@
 # Species distribution modeling with RI BARTs in R
-# Jeremy B. Yoder, 18 Sept 2024
+# Jeremy B. Yoder, 1 Oct 2025
 
 # Clears the environment and load key packages
 rm(list=ls())
@@ -34,16 +34,14 @@ glimpse(PA)
 MojExt <- c(-119.5, -112, 33, 38.5) # Extent of the Mojave desert
 
 # climate (Bioclim, previously downloaded at max res)
-BClim <- crop(worldclim_tile("bio", -120, 33, path="../data/Yucca/"), MojExt)
-BClim
+BClim <- crop(worldclim_tile("bio", -120, 33, path="data"), MojExt)
 
-plot(BClim[[1]]) # one layer from the SpatRaster stack
+plot(BClim[[5]]) # one layer from the SpatRaster stack
 
-# NB: the BioClim layers are (still) incorrectly sorted, per https://github.com/issues/created?issue=rspatial%7Cgeodata%7C38
-# But that issue thread lets us know how to fix this ...
-# "It seems that the order of bioclim variables is like the following: 1, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 2, 3 etc"
+names(BClim) <- c("AMT", "MDR", "ITH", "TS", "MWaMT", "MCMT", "TAR", "MWeQT", "MDQT", "MWaQT", "MCQT", "AP", "PWeM", "PDM", "PS", "PWeQ", "PDQ", "PWaQ", "PCQ")
 
-names(BClim) <- c("AMT", "MTWaQ", "MTCQ", "AP", "PWeM", "PDM", "PS", "PWeQ", "PDQ", "PWaQ", "PCQ", "MDR", "ITH", "TS", "MTWaM", "MTCM", "TAR", "MTWeQ", "MTDQ")
+plot(BClim[["AMT"]]) # Annual mean temperature
+plot(BClim[["AP"]]) # Annual precipitation
 
 # As a reminder, the bioclim variables are averages calculated from 1970-2000;
 # the 19 variables are
