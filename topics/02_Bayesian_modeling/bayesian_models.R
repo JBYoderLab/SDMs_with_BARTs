@@ -1,5 +1,5 @@
 # Bayesian regression, a worked example
-# Jeremy B. Yoder, 18 Sept 2025
+# Jeremy B. Yoder, 30 June 2026
 
 # In the last few decades, biologists have increasingly adopted Bayesian 
 # approaches, which can accommodate more complex "prior" understandings of the 
@@ -17,6 +17,7 @@
 # the `brms` package in R.
 
 # This script assumes your working directory is the project directory; you may want to change this
+
 # setwd("~/Documents/Active_projects/SDMs_with_BARTs")
 rm(list=ls()) 
 
@@ -123,7 +124,7 @@ summary(npoll.MSxLP)
 
 # Each parameter estimate is accompanied by the 95% CI derived from the 
 # simulation procedure --- an effect is "significant" in this framework if the
-# 95% CI doesn't cross zero. You can see that there's a signficant negative
+# 95% CI doesn't cross zero. You can see that there's a significant negative
 # effect of zygomorphic floral symmetry, and a significant positive effect of
 # latitude, for instance.
 
@@ -151,13 +152,14 @@ plot(npoll.MSxLP)
 # without the interaction between symmetry and latitude, without phylogeny, and
 # with just the random effect of community/web. 
 npoll.MSLP <- brm(n.poll ~ symmetry + lat.sc + pc1.sc + pc2.sc + (1|web), data=visitors, family="gamma", iter=5000, warmup=3000, cores=4)
+npoll.MLP <- brm(n.poll ~ lat.sc + pc1.sc + pc2.sc + (1|web), data=visitors, family="gamma", iter=5000, warmup=3000, cores=4)
 npoll.MSL <- brm(n.poll ~ symmetry + lat.sc + (1|web), data=visitors, family="gamma", iter=5000, warmup=3000, cores=4)
 npoll.M <- brm(n.poll ~ (1|web), data=visitors, family="gamma", iter=5000, warmup=3000, cores=4)
 
 # To compare models fitted in this way, we use a procedure called "leave one 
 # out" (LOO) cross-validation. This is (very roughly) analogous to comparing AIC
-# scores for alternative models ---  
-npoll.comp <- LOO(npoll.M, npoll.MSL, npoll.MSLP, npoll.MSxLP) 
+# scores for alternative models in a likelihood-based analysis.  
+npoll.comp <- LOO(npoll.M, npoll.MLP, npoll.MSL, npoll.MSLP, npoll.MSxLP) 
 
 npoll.comp 
 # Our best-fit model (with the lowest ELPD, or expected log pointwise predictive 
@@ -165,6 +167,8 @@ npoll.comp
 
 # We can also get an estimate of the variation explained using this function:
 bayes_R2(npoll.MSxLP) # rsq = 0.28
+
+# So our most complex model --- explaining floral visitor diversity with effects of floral symmetry, latitude, and phylogenetic history, plus an interaction of symmetry and latitude and a random effect of community identity --- is the best one we've examined. It explains about 28% of variation in floral visitor diversity. Notably, a model lacking the effect of symmetry has substantially worse performance (delta ELPD = -20.6) than this best-fit model.
 
 
 

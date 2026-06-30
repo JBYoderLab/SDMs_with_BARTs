@@ -1,5 +1,5 @@
 # Species distribution modeling with boosted regression trees in R
-# Jeremy B. Yoder, 1 Oct 2025
+# Jeremy B. Yoder, 30 June 2026
 
 # Clears the environment and load key packages
 rm(list=ls())
@@ -54,6 +54,7 @@ MojExt <- c(-119.5, -112, 33, 38.5) # Extent of the Mojave desert
 
 # climate (Bioclim, previously downloaded at max res)
 BClim <- crop(worldclim_tile("bio", -120, 33, path="data"), MojExt)
+# BClim <- crop(rast("data/climate/wc2.1_tiles/tile_15_wc2.1_30s_bio.tif"), MojExt)
 
 plot(BClim[[5]]) # one layer from the SpatRaster stack
 
@@ -90,13 +91,13 @@ plot(BClim[["AP"]]) # Annual precipitation
 # Create pseudo-absence records
 
 # Create a spatial polygon defining the range from which pseudo-absences are drawn
-jt_range <- jtOcc %>% # original presence records
-  st_as_sf(coords=c("lon", "lat"), crs=4326) %>% # coverted to sf, scaled in degrees
-  st_transform(crs=3857) %>% # transformed to scaling in meters
-  st_buffer(50000) %>% st_union() %>% # buffer by ... 10km?
-  st_convex_hull() %>% # Convex hull around the resulting polygon
-  st_simplify(preserveTopology=TRUE, dTolerance=5000) %>% st_buffer(10000) %>% 
-  st_transform(crs=4326) %>% st_as_sf() # back to lat-lon
+jt_range <- jtOcc |> # original presence records
+  st_as_sf(coords=c("lon", "lat"), crs=4326) |> # converted to sf, scaled in degrees
+  st_transform(crs=3857) |> # transformed to scaling in meters
+  st_buffer(50000) |> st_union() |> # buffer by ... 10km?
+  st_convex_hull() |> # Convex hull around the resulting polygon
+  st_simplify(preserveTopology=TRUE, dTolerance=5000) |> st_buffer(10000) |> 
+  st_transform(crs=4326) |> st_as_sf() # back to lat-lon
 
 # visualize this range polygon with the original data
 {png("topics/01_basic_SDMs/JT_occurrences_range_map.png", height=750, width=750)
@@ -111,9 +112,9 @@ ggplot() +
 dev.off()
 
 # mask a BIOCLIM layer to the range polygon, take the cell coordinates
-pseudabs <- terra::mask(BClim[[1]], vect(st_transform(jt_range, crs=crs(BClim[[1]])))) %>% 
-  crds(df=TRUE) %>% rename(lon=x, lat=y) %>% 
-  filter(!(paste(lon,lat) %in% paste(jtOcc$lon, jtOcc$lat))) %>% # remove cells represented in presence
+pseudabs <- terra::mask(BClim[[1]], vect(st_transform(jt_range, crs=crs(BClim[[1]])))) |> 
+  crds(df=TRUE) |> rename(lon=x, lat=y) |> 
+  filter(!(paste(lon,lat) %in% paste(jtOcc$lon, jtOcc$lat))) |> # remove cells represented in presence
   slice_sample(n=nrow(jtOcc)) # pull a sample the same size as presence
 
 glimpse(pseudabs) # should see the same number of rows as jtOcc
@@ -144,8 +145,8 @@ glimpse(abs_envs) # And ditto for the pseudoabsences
 # Assemble a single dataframe with presence/absence coordinates and the
 # associated BioClim values:
 PA <- rbind(data.frame(lon=jtOcc$lon, lat=jtOcc$lat, JT=1, pres_envs), 
-          data.frame(lon=pseudabs$lon, lat=pseudabs$lat, JT=0, abs_envs)) %>% 
-          mutate(ID = row_number()) %>% filter(!is.na(AMT))
+          data.frame(lon=pseudabs$lon, lat=pseudabs$lat, JT=0, abs_envs)) |> 
+          mutate(ID = row_number()) |> filter(!is.na(AMT))
 
 glimpse(PA) # should be ~twice the size of the presence data set
 
@@ -162,8 +163,14 @@ glimpse(PA)
 # vector of the Bioclim variables
 xnames <- colnames(PA)[5:23]
 
+PA$train <- sample(c(TRUE,FALSE), nrow(PA), prob=c(0.8,0.2), replace=TRUE)
+table(PA$train) # should be ~8k TRUE
+
+train <- filter(PA, train)
+test <- filter(PA, !train)
+
 # Fit a BRT model with defaults provided by `dismo`
-jtBRT <- gbm.step(data=PA, gbm.x=xnames, gbm.y="JT", family = "bernoulli", tree.complexity = 5, learning.rate = 0.05, bag.fraction = 0.5)
+jtBRT <- gbm.step(data=train, gbm.x=xnames, gbm.y="JT", family = "bernoulli", tree.complexity = 5, learning.rate = 0.05, bag.fraction = 0.5)
 
 jtBRT
 
@@ -176,13 +183,11 @@ dev.off()
 # Try to simplify the model from the full set of 19 Bioclim variables
 jtBRT.simp <- gbm.simplify(jtBRT)
 
-{png("topics/01_basic_SDMs/jtBRT.simp_predictor_contributions.png", width=500, height=750)
+# see how variable removal changes predictive deviance (error)
 summary(jtBRT.simp)
-}
-dev.off()
 
-# Fit a new stepwise model using the optimal predictors identified (in my run, this is 9, your mileage may vary)
-jtBRT2 <- gbm.step(data=PA, gbm.x=jtBRT.simp$pred.list[[9]], gbm.y="JT", family = "bernoulli", tree.complexity = 5, learning.rate = 0.05, bag.fraction = 0.5)
+# Fit a new stepwise model using the optimal predictors identified (in my run, this is the 9th iteration, your mileage may vary)
+jtBRT2 <- gbm.step(data=train, gbm.x=jtBRT.simp$pred.list[[9]], gbm.y="JT", family = "bernoulli", tree.complexity = 5, learning.rate = 0.05, bag.fraction = 0.5)
 
 write_rds(jtBRT2, file="output/models/jtBRT.rds") # save the results
 jtBRT2 <- read_rds("output/models/jtBRT.rds") # reload later
@@ -210,7 +215,7 @@ jtBRT.pred <- rast("output/jt_BRT_SDM_pred.tiff")
 jtBRT.pred.masked <- mask(jtBRT.pred, jt_range)
 
 # reformat as a dataframe, for figure generation
-jtBRT.pred.df <- cbind(crds(jtBRT.pred.masked), as.data.frame(jtBRT.pred.masked)) %>% rename(prJT = lyr1, lon=x, lat=y)
+jtBRT.pred.df <- cbind(crds(jtBRT.pred.masked), as.data.frame(jtBRT.pred.masked)) |> rename(prJT = lyr1, lon=x, lat=y)
 glimpse(jtBRT.pred.df)
 
 {png("topics/01_basic_SDMs/jtBRT_predicted.png", width=750, height=750)
@@ -230,6 +235,7 @@ ggplot() +
 }
 dev.off()
 
+# plot predictions with the original data to see how it aligns
 {png("topics/01_basic_SDMs/jtBRT_predicted_data.png", width=750, height=750)
   
   ggplot() + 
@@ -249,9 +255,41 @@ dev.off()
 }
 dev.off()
 
+# now, let's see how the model does with reserved test data
+test$PrJT <- predict(jtBRT2, test, n.trees=jtBRT2$gbm.call$best.trees, type="response")
 
+glimpse(test)
 
+performance(prediction(test$PrJT, test$JT), "auc")@y.values[[1]] # AUC
+# I get AUC = 0.94, but YMMV
 
+library("embarcadero") # pulling in some useful functions from dependencies
 
+# identify a classification cutoff, if you like
+test.pred <- prediction(test$PrJT, test$JT)
+perf.tss <- performance(test.pred, "sens", "spec")
+tss.list <- (perf.tss@x.values[[1]] + perf.tss@y.values[[1]] - 1)
+tss.df <- data.frame(alpha=perf.tss@alpha.values[[1]], tss=tss.list)
+thresh <- min(tss.df$alpha[which(tss.df$tss==max(tss.df$tss))])
+
+thresh # this is the classification cutoff that gives best sensitivity and specificity
+
+# plot predictions with the original data to see how it aligns
+{png("topics/01_basic_SDMs/jtBRT_predicted_threshold_data.png", width=750, height=750)
+  
+  ggplot() + 
+    geom_sf(data=coast, color="slategray2", linewidth=3) + 
+    geom_sf(data=states, fill="cornsilk2", color="antiquewhite4") + 
+    geom_tile(data=filter(jtBRT.pred.df, prJT>thresh), aes(x=lon, y=lat), fill="thistle3", color=NA) +
+    geom_sf(data=states, fill=NA, color="antiquewhite4") + 
+    geom_point(data=filter(PA, JT==1), aes(x=lon, y=lat), shape=20, color="forestgreen", size=1) + 
+    geom_point(data=filter(PA, JT==0), aes(x=lon, y=lat), shape=20, color="darkorange", size=1) +
+    
+    coord_sf(xlim = c(-119.5, -112), ylim = c(33, 38.5), expand = FALSE) + 
+    theme_bw(base_size=18) + 
+    theme(axis.title=element_blank(), panel.background=element_rect(fill="slategray3"), panel.grid.major=element_blank(), legend.position="top", legend.direction="horizontal", legend.key.width=unit(50, "points"))
+  
+}
+dev.off()
 
 
