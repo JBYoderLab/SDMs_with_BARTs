@@ -1,5 +1,5 @@
 # Species distribution modeling with BARTs in R
-# Jeremy B. Yoder, 1 Oct 2025
+# Jeremy B. Yoder, 30 June 2026
 
 # Clears the environment and load key packages
 rm(list=ls())
@@ -70,8 +70,16 @@ plot(BClim[["AP"]]) # Annual precipitation
 # vector of the Bioclim variables
 xnames <- colnames(PA)[5:23]
 
+# divide presence-absence records into randomly-assigned training and test data
+PA$train <- sample(c(TRUE,FALSE), nrow(PA), prob=c(0.8,0.2), replace=TRUE)
+table(PA$train) # should be ~8k TRUE
+
+train <- filter(PA, train)
+test <- filter(PA, !train)
+
+
 # Fit a simple BART model with all the predictors
-jtBART <- bart(y.train=PA[,"JT"], x.train=PA[,xnames], keeptrees=TRUE)
+jtBART <- bart(y.train=train[,"JT"], x.train=train[,xnames], keeptrees=TRUE)
 
 {png("topics/03_BART_SDMs/jtBART_summary.png", width=500, height=500)
 
@@ -80,9 +88,17 @@ summary(jtBART)
 }
 dev.off()
 
+test$PrJT <- dbarts:::predict.bart(object=jtBART, newdata=test[,xnames])[1,]
+
+glimpse(test) 
+
+performance(prediction(test$PrJT, test$JT), "auc")@y.values[[1]] # AUC
+# I get AUC = 0.93
+
+
 # As before, we want to simplify the model from the full set of 19 bioclim variables
 # One option is to do this with stepwise BART model training. This will be slow!
-jtBART.step <- bart.step(y.data=as.numeric(PA[,"JT"]), x.data=PA[,xnames], full=FALSE, quiet=TRUE)
+jtBART.step <- bart.step(y.data=as.numeric(train[,"JT"]), x.data=train[,xnames], full=FALSE, quiet=TRUE)
 
 # It may be useful to save a model object for later work. 
 # First, we need to "touch" the model state to make sure the trees are saved with the rest of the model.
@@ -93,6 +109,14 @@ write_rds(jtBART.step, file="output/models/jtBART.step.rds")
 jtBART.step <- read_rds(file="output/models/jtBART.step.rds")
 
 summary(jtBART.step)
+
+test$step.PrJT <- dbarts:::predict.bart(object=jtBART.step, newdata=test[,xnames])[1,]
+
+glimpse(test) 
+
+performance(prediction(test$step.PrJT, test$JT), "auc")@y.values[[1]] # AUC
+# I get AUC = 0.92
+
 
 stepX <- attr(jtBART.step$fit$data@x, "term.labels")
 stepX # these are the predictors kept in the stepwise model
@@ -111,7 +135,7 @@ stepX # these are the predictors kept in the stepwise model
 # simpler models are more likely to be highly informative.
 
 # In practice, this means training a bunch of models, so this may be very slow!
-jtVarimp <- varimp.diag(y.data=as.numeric(PA[,"JT"]), x.data=PA[,xnames])
+jtVarimp <- varimp.diag(y.data=as.numeric(train[,"JT"]), x.data=train[,xnames])
 
 # a useful fix for a minor issue
 jtVarimp$data <- jtVarimp$data %>% mutate(trees = factor(trees, c(10,20,50,100,150,200)))
@@ -139,11 +163,11 @@ dev.off()
 # we can defensibly draw it at TS, temperature seasonality, and all predictors
 # to its left.
 
-# Define the top predictor set
-topX <- c("PS", "PDQ", "PWaQ", "MTCM", "PDM", "MTWeQ", "TS")
+# Define the top predictor set by inspection
+topX <- c("PWaQ", "PS", "PDQ", "PDM", "MCMT", "MWeQT", "TS")
 
 # Train a new model with those top predictors
-jtBARTtop <- bart(y.train=PA[,"JT"], x.train=PA[,topX], keeptrees=TRUE)
+jtBARTtop <- bart(y.train=train[,"JT"], x.train=train[,topX], keeptrees=TRUE)
 
 # Make sure trees are stored with the model object
 invisible(jtBARTtop$fit$state)
@@ -159,8 +183,22 @@ summary(jtBARTtop)
 }
 dev.off()
 
+# AUC comparisons
+test$top.PrJT <- dbarts:::predict.bart(object=jtBARTtop, newdata=test[,xnames])[1,]
+
+glimpse(test) 
+
+performance(prediction(test$PrJT, test$JT), "auc")@y.values[[1]] # AUC
+# I get AUC = 0.93 here
+
+performance(prediction(test$step.PrJT, test$JT), "auc")@y.values[[1]] # AUC
+# I get AUC = 0.92 here
+
+performance(prediction(test$top.PrJT, test$JT), "auc")@y.values[[1]] # AUC
+# I get AUC = 0.92 here too
+
 # Did our predictor set from varimp.diag() differ from stepwise fitting?
-setdiff(stepX, topX) # stepwise fitting selected MTCQ, ITH, and TAR
+setdiff(stepX, topX) # stepwise fitting included MTCQ, ITH, and TAR
 setdiff(topX, stepX) # all the topX predictors were found in stepwise fitting
 
 # Check the varimp plot again and see where the three extra predictors found
@@ -188,7 +226,7 @@ dev.off()
 # to the old stack() function from the raster package, to convert BClim to a 
 # format the predict() function can use.
 pred_bart <- predict(jtBARTtop, stack(BClim), splitby=20, quantiles=c(0.025,0.975))
-pred_bart # note that we have three layers in this 
+pred_bart # note that we have THREE layers in this 
 # These are the mean and specified quantiles, the upper and lower bounds of the 95% posterior density
 
 # Save (and reload, if later)
@@ -209,7 +247,7 @@ pred_bart.masked <- mask(pred_bart, jt_range)
 
 # reformat as a dataframe, for figure generation
 jtBARTtop.df <- cbind(crds(pred_bart.masked), as.data.frame(pred_bart.masked)) %>% 
-  rename(prJT = jtBARTtop_SDM_pred_1, lo95=jtBARTtop_SDM_pred_2, up95=jtBARTtop_SDM_pred_3, lon=x, lat=y)
+  rename(prJT = layer.1, lo95=layer.2, up95=layer.3, lon=x, lat=y)
 glimpse(jtBARTtop.df)
 
 #-------------------------------------------------------------------------
@@ -285,15 +323,15 @@ jtBRT.pred <- rast("output/jt_BRT_SDM_pred.tiff")
 BRT.pred.masked <- mask(jtBRT.pred, jt_range) # mask to the range polygon
 
 # compare classification accuracy for BART and BRT
-predictedBART <- terra::extract(pred_bart, PA[,c("lon", "lat")])[,2]
-predictedBRT <- terra::extract(jtBRT.pred, PA[,c("lon", "lat")])[,2]
+predictedBART <- terra::extract(pred_bart, test[,c("lon", "lat")])[,2]
+predictedBRT <- terra::extract(jtBRT.pred, test[,c("lon", "lat")])[,2]
 
 # calculate AUC (higher is better)
-auc(PA$JT, predictedBART)
-auc(PA$JT, predictedBRT)
+auc(test$JT, predictedBART)
+auc(test$JT, predictedBRT)
 
 # determine a classification cutoff for the BRT
-predBRT <- prediction(predictedBRT, PA$JT)
+predBRT <- prediction(predictedBRT, test$JT)
 tssBRT <- performance(predBRT, "sens", "spec")
 tss.list <- (tssBRT@x.values[[1]] + tssBRT@y.values[[1]] - 1)
 tss.df <- data.frame(alpha = tssBRT@alpha.values[[1]], tss = tss.list)
@@ -301,13 +339,13 @@ threshBRT <- min(tss.df$alpha[which(tss.df$tss == max(tss.df$tss))])
 
 # get cutoff for the BART
 summary(jtBARTtop)
-threshBART <- 0.52
+threshBART <- 0.597
 
 # Confusion matrix for BRT: 0,1 is observed; FALSE,TRUE is model-predicted
-table(PA$JT, predictedBRT>threshBRT) 
+table(test$JT, predictedBRT>threshBRT) 
 
 # Confusion matrix for BART: 0,1 is observed; FALSE,TRUE is model-predicted
-table(PA$JT, predictedBART>threshBART) 
+table(test$JT, predictedBART>threshBART) 
 
 # illustrate differences
 BARTvBRT <- pred_bart.masked[[1]] - BRT.pred.masked # difference in Pr(present)

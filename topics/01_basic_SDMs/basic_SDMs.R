@@ -163,6 +163,7 @@ glimpse(PA)
 # vector of the Bioclim variables
 xnames <- colnames(PA)[5:23]
 
+# divide presence-absence records into randomly-assigned training and test data
 PA$train <- sample(c(TRUE,FALSE), nrow(PA), prob=c(0.8,0.2), replace=TRUE)
 table(PA$train) # should be ~8k TRUE
 
