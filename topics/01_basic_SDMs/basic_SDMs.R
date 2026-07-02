@@ -94,7 +94,7 @@ plot(BClim[["AP"]]) # Annual precipitation
 jt_range <- jtOcc |> # original presence records
   st_as_sf(coords=c("lon", "lat"), crs=4326) |> # converted to sf, scaled in degrees
   st_transform(crs=3857) |> # transformed to scaling in meters
-  st_buffer(50000) |> st_union() |> # buffer by ... 10km?
+  st_buffer(50000) |> st_union() |> # buffer by ... 50km?
   st_convex_hull() |> # Convex hull around the resulting polygon
   st_simplify(preserveTopology=TRUE, dTolerance=5000) |> st_buffer(10000) |> 
   st_transform(crs=4326) |> st_as_sf() # back to lat-lon
@@ -261,10 +261,10 @@ test$PrJT <- predict(jtBRT2, test, n.trees=jtBRT2$gbm.call$best.trees, type="res
 
 glimpse(test)
 
-performance(prediction(test$PrJT, test$JT), "auc")@y.values[[1]] # AUC
-# I get AUC = 0.94, but YMMV
-
 library("embarcadero") # pulling in some useful functions from dependencies
+
+performance(prediction(test$PrJT, test$JT), "auc")@y.values[[1]] # AUC
+# I get AUC = 0.98, but YMMV
 
 # identify a classification cutoff, if you like
 test.pred <- prediction(test$PrJT, test$JT)

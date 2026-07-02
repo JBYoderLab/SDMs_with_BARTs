@@ -98,7 +98,7 @@ performance(prediction(test$PrJT, test$JT), "auc")@y.values[[1]] # AUC
 
 # As before, we want to simplify the model from the full set of 19 bioclim variables
 # One option is to do this with stepwise BART model training. This will be slow!
-jtBART.step <- bart.step(y.data=as.numeric(train[,"JT"]), x.data=train[,xnames], full=FALSE, quiet=TRUE)
+jtBART.step <- bart.step(y.data=as.numeric(train[,"JT"]), x.data=train[,xnames], full=FALSE, quiet=FALSE)
 
 # It may be useful to save a model object for later work. 
 # First, we need to "touch" the model state to make sure the trees are saved with the rest of the model.
@@ -120,7 +120,7 @@ performance(prediction(test$step.PrJT, test$JT), "auc")@y.values[[1]] # AUC
 
 stepX <- attr(jtBART.step$fit$data@x, "term.labels")
 stepX # these are the predictors kept in the stepwise model
-
+stepX[1] <- "MCQT"
 
 #-------------------------------------------------------------------------
 # More formal predictor selection with varimp.diag()
@@ -149,7 +149,7 @@ jtVarimp <- read_rds(file="output/models/jt_varimp.rds") # read it back in
 # Write out the varimp diagnostic plot
 {png(file="topics/03_BART_SDMs/jt_varimp_plot.png", width=600, height=500)
   
-  jtVarimp + 
+jtVarimp + 
     theme_bw(base_size=18) +
     theme(legend.position="inside", legend.position.inside=c(0.8, 0.7), axis.text.x=element_text(angle=90))  # okay nice
   
@@ -238,7 +238,7 @@ pred_bart <- rast("output/jtBARTtop_SDM_pred.tiff")
 jt_range <- read.csv("data/JT_obs.txt", sep="\t") %>% # original presence records
   st_as_sf(coords=c("lon", "lat"), crs=4326) %>% # coverted to sf, scaled in degrees
   st_transform(crs=3857) %>% # transformed to scaling in meters
-  st_buffer(50000) %>% st_union() %>% # buffer by ... 10km?
+  st_buffer(50000) %>% st_union() %>% # buffer by ... 50km?
   st_convex_hull() %>% # Convex hull around the resulting polygon
   st_simplify(preserveTopology=TRUE, dTolerance=5000) %>% st_buffer(10000) %>% 
   st_transform(crs=4326) %>% st_as_sf() # back to lat-lon
@@ -247,7 +247,7 @@ pred_bart.masked <- mask(pred_bart, jt_range)
 
 # reformat as a dataframe, for figure generation
 jtBARTtop.df <- cbind(crds(pred_bart.masked), as.data.frame(pred_bart.masked)) %>% 
-  rename(prJT = layer.1, lo95=layer.2, up95=layer.3, lon=x, lat=y)
+  rename(prJT = jtBARTtop_SDM_pred_1, lo95=jtBARTtop_SDM_pred_2, up95=jtBARTtop_SDM_pred_3, lon=x, lat=y)
 glimpse(jtBARTtop.df)
 
 #-------------------------------------------------------------------------
@@ -339,7 +339,7 @@ threshBRT <- min(tss.df$alpha[which(tss.df$tss == max(tss.df$tss))])
 
 # get cutoff for the BART
 summary(jtBARTtop)
-threshBART <- 0.597
+threshBART <- 0.55
 
 # Confusion matrix for BRT: 0,1 is observed; FALSE,TRUE is model-predicted
 table(test$JT, predictedBRT>threshBRT) 
