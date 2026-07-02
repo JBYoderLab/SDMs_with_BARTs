@@ -1,5 +1,5 @@
 # Species distribution modeling with BARTs in R
-# Jeremy B. Yoder, 30 June 2026
+# Jeremy B. Yoder, 2 July 2026
 
 # Clears the environment and load key packages
 rm(list=ls())
@@ -138,7 +138,7 @@ stepX[1] <- "MCQT"
 jtVarimp <- varimp.diag(y.data=as.numeric(train[,"JT"]), x.data=train[,xnames])
 
 # a useful fix for a minor issue
-jtVarimp$data <- jtVarimp$data %>% mutate(trees = factor(trees, c(10,20,50,100,150,200)))
+jtVarimp$data <- jtVarimp$data |> mutate(trees = factor(trees, c(10,20,50,100,150,200)))
 
 jtVarimp$labels$group <- "Trees"
 jtVarimp$labels$colour <- "Trees"
@@ -235,18 +235,18 @@ pred_bart <- rast("output/jtBARTtop_SDM_pred.tiff")
 
 # Mask to the same "joshua tree range" we created earlier
 # Create a spatial polygon defining the range from which pseudo-absences are drawn
-jt_range <- read.csv("data/JT_obs.txt", sep="\t") %>% # original presence records
-  st_as_sf(coords=c("lon", "lat"), crs=4326) %>% # coverted to sf, scaled in degrees
-  st_transform(crs=3857) %>% # transformed to scaling in meters
-  st_buffer(50000) %>% st_union() %>% # buffer by ... 50km?
-  st_convex_hull() %>% # Convex hull around the resulting polygon
-  st_simplify(preserveTopology=TRUE, dTolerance=5000) %>% st_buffer(10000) %>% 
-  st_transform(crs=4326) %>% st_as_sf() # back to lat-lon
+jt_range <- read.csv("data/JT_obs.txt", sep="\t") |> # original presence records
+  st_as_sf(coords=c("lon", "lat"), crs=4326) |> # coverted to sf, scaled in degrees
+  st_transform(crs=3857) |> # transformed to scaling in meters
+  st_buffer(50000) |> st_union() |> # buffer by ... 50km?
+  st_convex_hull() |> # Convex hull around the resulting polygon
+  st_simplify(preserveTopology=TRUE, dTolerance=5000) |> st_buffer(10000) |> 
+  st_transform(crs=4326) |> st_as_sf() # back to lat-lon
 
 pred_bart.masked <- mask(pred_bart, jt_range)
 
 # reformat as a dataframe, for figure generation
-jtBARTtop.df <- cbind(crds(pred_bart.masked), as.data.frame(pred_bart.masked)) %>% 
+jtBARTtop.df <- cbind(crds(pred_bart.masked), as.data.frame(pred_bart.masked)) |> 
   rename(prJT = jtBARTtop_SDM_pred_1, lo95=jtBARTtop_SDM_pred_2, up95=jtBARTtop_SDM_pred_3, lon=x, lat=y)
 glimpse(jtBARTtop.df)
 
@@ -350,7 +350,7 @@ table(test$JT, predictedBART>threshBART)
 # illustrate differences
 BARTvBRT <- pred_bart.masked[[1]] - BRT.pred.masked # difference in Pr(present)
 
-BARTvBRT.df <- cbind(crds(BARTvBRT), as.data.frame(BARTvBRT)) %>% rename(prDiff = jtBARTtop_SDM_pred_1, lon = x, lat = y)
+BARTvBRT.df <- cbind(crds(BARTvBRT), as.data.frame(BARTvBRT)) |> rename(prDiff = jtBARTtop_SDM_pred_1, lon = x, lat = y)
 glimpse(BARTvBRT.df)
 
 

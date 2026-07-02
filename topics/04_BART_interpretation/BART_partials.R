@@ -1,6 +1,6 @@
 # Species distribution modeling with BARTs in R
 # Predictor partial effects, in multiple formats
-# Jeremy B. Yoder, 1 Oct 2025
+# Jeremy B. Yoder, 2 July 2026
 
 # Clears the environment and load key packages
 rm(list=ls())
@@ -69,11 +69,19 @@ plot(BClim[["AP"]]) # Annual precipitation
 # Fit a species distribution model with BARTs
 # using previously-identified best predictors
 
+# divide presence-absence records into randomly-assigned training and test data
+PA$train <- sample(c(TRUE,FALSE), nrow(PA), prob=c(0.8,0.2), replace=TRUE)
+table(PA$train) # should be ~8k TRUE
+
+train <- filter(PA, train)
+test <- filter(PA, !train)
+
+
 # vector of the Bioclim variables
-topX <- c("PS", "PDQ", "PWaQ", "MTCM", "PDM", "MTWeQ", "TS")
+topX <- c("PWaQ", "PS", "PDQ", "PDM", "MCMT", "MWeQT", "TS")
 
 # Train a new model with those top predictors
-jtBARTtop <- bart(y.train=PA[,"JT"], x.train=PA[,topX], keeptrees=TRUE)
+jtBARTtop <- bart(y.train=train[,"JT"], x.train=train[,topX], keeptrees=TRUE)
 
 summary(jtBARTtop)
 

@@ -1,5 +1,5 @@
 # Species distribution modeling with RI BARTs in R
-# Jeremy B. Yoder, 1 Oct 2025
+# Jeremy B. Yoder, 2 July 2026
 
 # Clears the environment and load key packages
 rm(list=ls())
@@ -121,10 +121,17 @@ glimpse(PA) # should now have a new numeric-value column
 # are much denser in Nevada --- we can treat state as an RI predictor to
 # account for this.
 
+# divide presence-absence records into randomly-assigned training and test data
+PA$train <- sample(c(TRUE,FALSE), nrow(PA), prob=c(0.8,0.2), replace=TRUE)
+table(PA$train) # should be ~8k TRUE
+
+train <- filter(PA, train)
+test <- filter(PA, !train)
+
 # First, we'll perform predictor selection again, with the RI effect included
 xnames <- colnames(PA)[5:23]
 
-jtRIVarimp <- varimp.diag(y.data=as.numeric(PA[,"JT"]), x.data=PA[,xnames], ri.data=PA[,"State"])
+jtRIVarimp <- varimp.diag(y.data=as.numeric(train[,"JT"]), x.data=train[,xnames], ri.data=train[,"State"])
 
 jtRIVarimp$data <- jtRIVarimp$data %>% mutate(trees = factor(trees, c(10,20,50,100,150,200)))
 
@@ -145,12 +152,13 @@ jtRIVarimp <- read_rds(file="output/models/jt_RIvarimp.rds") # read it back in
 dev.off()
 
 # We can then identify the top non-RI predictors as we did before ...
-topX <- c("PDQ", "MTCM", "PS", "PDM", "PWaQ", "TAR", "TS", "MDR")
+topX <- c("MCMT", "PDQ", "PWaQ", "PS", "PDM", "TS", "TAR")
 
 # Then fit the model, specifying State as an RI predictor ("group.by")
-jtRIBART <- rbart_vi(as.formula(paste(paste('JT', paste(topX, collapse=' + '), sep = ' ~ '), 'State', sep=' - ')), data = PA, group.by = PA[,'State'], n.chains = 1, k = 2, power = 2, base = 0.95, keepTrees = TRUE)
+jtRIBART <- rbart_vi(as.formula(paste(paste('JT', paste(topX, collapse=' + '), sep = ' ~ '), 'State', sep=' - ')), data = train, group.by = train[,'State'], n.chains = 1, k = 2, power = 2, base = 0.95, keepTrees = TRUE)
 
-# as before
+# as before, we need to take some extra steps before saving the model, though
+# a RI-BART model object has slightly different structure
 invisible(jtRIBART$fit[[1]]$state)
 write_rds(jtRIBART, file="output/models/jtRIBART.rds") 
 jtRIBART <- read_rds(file="output/models/jtRIBART.rds")
@@ -190,9 +198,9 @@ pred_RI <- rast("output/jtRIBART_SDM_pred.tiff")
 # Mask to the same "joshua tree range" we created earlier
 # Create a spatial polygon defining the range from which pseudo-absences are drawn
 jt_range <- read.csv("data/JT_obs.txt", sep="\t") %>% # original presence records
-  st_as_sf(coords=c("lon", "lat"), crs=4326) %>% # coverted to sf, scaled in degrees
+  st_as_sf(coords=c("lon", "lat"), crs=4326) %>% # converted to sf, scaled in degrees
   st_transform(crs=3857) %>% # transformed to scaling in meters
-  st_buffer(50000) %>% st_union() %>% # buffer by ... 10km?
+  st_buffer(50000) %>% st_union() %>% # buffer by ... 50km?
   st_convex_hull() %>% # Convex hull around the resulting polygon
   st_simplify(preserveTopology=TRUE, dTolerance=5000) %>% st_buffer(10000) %>% 
   st_transform(crs=4326) %>% st_as_sf() # back to lat-lon
