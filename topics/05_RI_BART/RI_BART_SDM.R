@@ -99,7 +99,7 @@ MojStates <- raster::rasterize(filter(states, name_en %in% c("California", "Neva
 plot(MojStates) # confirm we've got a raster layer with state IDs
 
 # but we need numeric values to provide as predictors for BARTs, so
-MojStates.numeric <- MojStates %>% as.numeric() 
+MojStates.numeric <- MojStates |> as.numeric() 
 plot(MojStates.numeric) # there we go
 
 # add state as a layer to our RasterStack of predictors
@@ -133,7 +133,7 @@ xnames <- colnames(PA)[5:23]
 
 jtRIVarimp <- varimp.diag(y.data=as.numeric(train[,"JT"]), x.data=train[,xnames], ri.data=train[,"State"])
 
-jtRIVarimp$data <- jtRIVarimp$data %>% mutate(trees = factor(trees, c(10,20,50,100,150,200)))
+jtRIVarimp$data <- jtRIVarimp$data |> mutate(trees = factor(trees, c(10,20,50,100,150,200)))
 
 jtRIVarimp$labels$group <- "Trees"
 jtRIVarimp$labels$colour <- "Trees"
@@ -152,7 +152,7 @@ jtRIVarimp <- read_rds(file="output/models/jt_RIvarimp.rds") # read it back in
 dev.off()
 
 # We can then identify the top non-RI predictors as we did before ...
-topX <- c("MCMT", "PDQ", "PWaQ", "PS", "PDM", "TS", "TAR")
+topX <- c("MCMT", "PDQ", "PWaQ", "PS", "PDM", "TAR", "MDR")
 
 # Then fit the model, specifying State as an RI predictor ("group.by")
 jtRIBART <- rbart_vi(as.formula(paste(paste('JT', paste(topX, collapse=' + '), sep = ' ~ '), 'State', sep=' - ')), data = train, group.by = train[,'State'], n.chains = 1, k = 2, power = 2, base = 0.95, keepTrees = TRUE)
@@ -197,18 +197,18 @@ pred_RI <- rast("output/jtRIBART_SDM_pred.tiff")
 
 # Mask to the same "joshua tree range" we created earlier
 # Create a spatial polygon defining the range from which pseudo-absences are drawn
-jt_range <- read.csv("data/JT_obs.txt", sep="\t") %>% # original presence records
-  st_as_sf(coords=c("lon", "lat"), crs=4326) %>% # converted to sf, scaled in degrees
-  st_transform(crs=3857) %>% # transformed to scaling in meters
-  st_buffer(50000) %>% st_union() %>% # buffer by ... 50km?
-  st_convex_hull() %>% # Convex hull around the resulting polygon
-  st_simplify(preserveTopology=TRUE, dTolerance=5000) %>% st_buffer(10000) %>% 
-  st_transform(crs=4326) %>% st_as_sf() # back to lat-lon
+jt_range <- read.csv("data/JT_obs.txt", sep="\t") |> # original presence records
+  st_as_sf(coords=c("lon", "lat"), crs=4326) |> # converted to sf, scaled in degrees
+  st_transform(crs=3857) |> # transformed to scaling in meters
+  st_buffer(50000) |> st_union() |> # buffer by ... 50km?
+  st_convex_hull() |> # Convex hull around the resulting polygon
+  st_simplify(preserveTopology=TRUE, dTolerance=5000) |> st_buffer(10000) |> 
+  st_transform(crs=4326) |> st_as_sf() # back to lat-lon
 
 pred_RI.masked <- mask(pred_RI, jt_range)
 
 # reformat as a dataframe, for figure generation
-jtRIBART.df <- cbind(crds(pred_RI.masked), as.data.frame(pred_RI.masked)) %>% rename(prJT = jtRIBART_SDM_pred, lon=x, lat=y)
+jtRIBART.df <- cbind(crds(pred_RI.masked), as.data.frame(pred_RI.masked)) |> rename(prJT = jtRIBART_SDM_pred, lon=x, lat=y)
 glimpse(jtRIBART.df)
 
 #-------------------------------------------------------------------------
@@ -245,7 +245,7 @@ pred_basic <- rast("output/jtBARTtop_SDM_pred.tiff")
 RIvBART <- pred_RI - pred_basic[[1]] 
 RIvBART.masked <- mask(RIvBART, jt_range)
 
-RIvBART.df <- cbind(crds(RIvBART.masked), as.data.frame(RIvBART.masked)) %>% rename(prDiff = jtRIBART_SDM_pred, lon = x, lat = y)
+RIvBART.df <- cbind(crds(RIvBART.masked), as.data.frame(RIvBART.masked)) |> rename(prDiff = jtRIBART_SDM_pred, lon = x, lat = y)
 glimpse(RIvBART.df)
 
 {png("topics/05_RI_BART/jtRIBART_vs_BART.png", width=750, height=750)
